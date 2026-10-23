@@ -52,7 +52,7 @@ value_rules:
     action: mask
 
   - name: credit-card
-    pattern: '\b\d{13,19}\b'
+    pattern: '\b(?:\d[ -]?){12,18}\d\b'
     validator: luhn
     action: partial
 
