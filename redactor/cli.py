@@ -14,6 +14,23 @@ MAX_LINE_BYTES = 8 * 1024 * 1024
 ERROR_RECORD = b'{"error":"redaction_failed"}\n'
 
 
+def reject_constant(value):
+    """Reject non-standard JSON constants such as NaN and Infinity."""
+    raise ValueError("Invalid JSON constant")
+
+
+def reject_duplicate_keys(pairs):
+    """Prevent duplicate JSON keys from silently overwriting data."""
+    result = {}
+
+    for key, value in pairs:
+        if key in result:
+            raise ValueError("Duplicate JSON key")
+        result[key] = value
+
+    return result
+
+
 def process_stream(
     source,
     output,
@@ -52,7 +69,13 @@ def process_stream(
 
         try:
             # Decode and parse a single JSON transaction.
-            transaction = json.loads(raw.decode("utf-8"))
+            
+            transaction = json.loads(
+            raw.decode("utf-8"),
+            parse_constant=reject_constant,
+            object_pairs_hook=reject_duplicate_keys,
+        )
+
 
             if not isinstance(transaction, dict):
                 raise ValueError("Expected a JSON object")
