@@ -165,5 +165,8 @@ Docker execution and startup failure with missing rules were also verified.
 
 With more time, I would expand the test coverage with fuzz and property-based testing and benchmark the system with larger workloads. I would prioritize these improvements based on measured performance and reliability needs.
 
+**Optional Bonuses:** The optional worker pool, Prometheus-style metrics, and hot-reloading of rules were not implemented. I prioritized correct streaming redaction, security, testing, and deployment within the assignment's time constraints.
+
+
 ### Sub-millisecond latency
 Sub-millisecond production latency has not been measured or demonstrated. If this system had to run inline on live production traffic with a sub-millisecond budget per request, I would first benchmark representative records and measure p50, p95, and p99 latency. I would then profile JSON parsing, serialization, recursive traversal, regex matching, hashing, and memory allocations to identify the main bottlenecks. Based on the results, I would consider faster libraries or a compiled implementation such as Go, while testing under concurrent load and ensuring that optimizations preserve fail-closed behavior. The current implementation prioritizes correctness, security, and maintainability over unverified latency claims.
