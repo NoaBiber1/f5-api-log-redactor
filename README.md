@@ -83,7 +83,7 @@ Let `N` be the size of a single record, `R` the number of configured rules, and 
 - **Time:** Approximately `O(R × N + M log M)` per record, assuming typical linear regex matching. Worst-case performance depends on the configured regex patterns.
 - **Space:** Approximately `O(N + M)` per record for parsing, traversal, and match processing. CLI memory usage does not grow with the total number of input records.
 
-Individual input records are limited to 8 MiB. In HTTP mode, buffered diagnostic messages can also consume memory proportional to the number of failed records in a request.
+Individual input records are limited to 8 MiB. 
 
 ### Why Python?
 
@@ -163,8 +163,7 @@ Docker execution and startup failure with missing rules were also verified.
 - Kubernetes uses a local image reference; remote deployments require a container registry.
 - Rule ConfigMap changes require a Pod rollout due to the `subPath` mount.
 
-With more time, I would expand the test coverage with fuzz and property-based testing, benchmark the system with larger workloads, and improve HTTP diagnostic handling to avoid accumulating error messages in memory. I would prioritize these improvements based on measured performance and reliability needs.
-
+With more time, I would expand the test coverage with fuzz and property-based testing and benchmark the system with larger workloads. I would prioritize these improvements based on measured performance and reliability needs.
 
 ### Sub-millisecond latency
 Sub-millisecond production latency has not been measured or demonstrated. If this system had to run inline on live production traffic with a sub-millisecond budget per request, I would first benchmark representative records and measure p50, p95, and p99 latency. I would then profile JSON parsing, serialization, recursive traversal, regex matching, hashing, and memory allocations to identify the main bottlenecks. Based on the results, I would consider faster libraries or a compiled implementation such as Go, while testing under concurrent load and ensuring that optimizations preserve fail-closed behavior. The current implementation prioritizes correctness, security, and maintainability over unverified latency claims.
