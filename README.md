@@ -67,6 +67,24 @@ NDJSON records are processed individually rather than loading the complete input
 
 The engine handles nested JSON, sensitive HTTP headers, embedded JSON strings, and supported textual/form-encoded content.
 
+
+### Design Decisions & Trade-offs
+
+I used recursive traversal to handle nested dictionaries and arrays, keeping the implementation simple and readable. The trade-off is Python's recursion depth limit, which is handled safely as a processing failure.
+
+Rules are loaded from YAML and regex patterns are compiled once during initialization. Key rules match field names, while value rules detect sensitive content within strings. Overlapping text matches are resolved deterministically, prioritizing the leftmost match and key-based assignments over value patterns.
+
+NDJSON is processed one record at a time rather than loading the entire input into memory. Failed records produce a safe error marker instead of returning potentially sensitive original data.
+
+### Time & Space Complexity
+
+Let `N` be the size of a single record, `R` the number of configured rules, and `M` the number of candidate text matches.
+
+- **Time:** Approximately `O(R × N + M log M)` per record, assuming typical linear regex matching. Worst-case performance depends on the configured regex patterns.
+- **Space:** Approximately `O(N + M)` per record for parsing, traversal, and match processing. CLI memory usage does not grow with the total number of input records.
+
+Individual input records are limited to 8 MiB. In HTTP mode, buffered diagnostic messages can also consume memory proportional to the number of failed records in a request.
+
 ### Why Python?
 
 I chose Python because I have stronger experience with it, while Go is relatively new to me. Given the assignment's time constraints, Python allowed me to focus on correctness, security, and comprehensive testing.
@@ -145,18 +163,8 @@ Docker execution and startup failure with missing rules were also verified.
 - Kubernetes uses a local image reference; remote deployments require a container registry.
 - Rule ConfigMap changes require a Pod rollout due to the `subPath` mount.
 
+With more time, I would expand the test coverage with fuzz and property-based testing, benchmark the system with larger workloads, and improve HTTP diagnostic handling to avoid accumulating error messages in memory. I would prioritize these improvements based on measured performance and reliability needs.
+
+
 ### Sub-millisecond latency
-
-Sub-millisecond production latency has **not been measured or demonstrated**.
-
-Potential bottlenecks include JSON parsing, recursive traversal, regex matching, hashing, and Python object allocation.
-
-To approach this target, I would:
-
-1. Benchmark representative records and measure p50, p95, and p99 latency.
-2. Reuse validated and precompiled rules where safe.
-3. Profile JSON parsing, serialization, regex matching, and memory allocations.
-4. Evaluate faster libraries or a compiled implementation, such as Go, if profiling justifies it.
-5. Run concurrent-load tests and verify that optimizations preserve fail-closed behavior.
-
-The current implementation prioritizes correctness, security, and maintainability over unverified latency claims.
+Sub-millisecond production latency has not been measured or demonstrated. If this system had to run inline on live production traffic with a sub-millisecond budget per request, I would first benchmark representative records and measure p50, p95, and p99 latency. I would then profile JSON parsing, serialization, recursive traversal, regex matching, hashing, and memory allocations to identify the main bottlenecks. Based on the results, I would consider faster libraries or a compiled implementation such as Go, while testing under concurrent load and ensuring that optimizations preserve fail-closed behavior. The current implementation prioritizes correctness, security, and maintainability over unverified latency claims.
