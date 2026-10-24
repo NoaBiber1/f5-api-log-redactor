@@ -66,6 +66,7 @@ def request(port, method, path, body=None):
 
 
 def ndjson(*records):
+    """Encode JSON records as UTF-8 NDJSON bytes."""
     return b"".join(
         (
             json.dumps(record, ensure_ascii=False) + "\n"
@@ -75,6 +76,7 @@ def ndjson(*records):
 
 
 def test_health_endpoint():
+    """Verify that the health endpoint responds with HTTP 200 and OK status."""
     with running_server() as port:
         status, body = request(port, "GET", "/health")
 
@@ -83,6 +85,7 @@ def test_health_endpoint():
 
 
 def test_unknown_endpoint_returns_404():
+    """Ensure unknown HTTP paths return a safe 404 response."""
     with running_server() as port:
         status, body = request(port, "GET", "/unknown")
 
@@ -91,6 +94,7 @@ def test_unknown_endpoint_returns_404():
 
 
 def test_post_redact_streams_multiple_records():
+    """Verify multiple NDJSON records are redacted over the HTTP API."""
     data = ndjson(
         {
             "headers": {
@@ -135,6 +139,7 @@ def test_post_redact_streams_multiple_records():
 
 
 def test_invalid_record_fails_closed_and_stream_continues():
+    """Replace malformed records safely while processing subsequent records."""
     data = (
         ndjson({"body": {"password": "first"}})
         + b'{"password":"private", broken}\n'
@@ -165,6 +170,7 @@ def test_invalid_record_fails_closed_and_stream_continues():
 
 
 def test_missing_rules_prevent_server_startup(tmp_path):
+    """Ensure the HTTP server cannot start without a rules configuration."""
     missing = tmp_path / "missing-rules.yaml"
 
     with pytest.raises((OSError, ValueError)):
@@ -175,6 +181,7 @@ def test_missing_rules_prevent_server_startup(tmp_path):
 
 
 def test_invalid_rules_prevent_server_startup(tmp_path):
+    """Ensure invalid rules prevent startup instead of weakening redaction."""
     invalid = tmp_path / "invalid-rules.yaml"
     invalid.write_text(
         "version: 999\n",
@@ -189,6 +196,7 @@ def test_invalid_rules_prevent_server_startup(tmp_path):
 
 
 def test_request_without_content_length_is_rejected():
+    """Reject requests with no Content-Length using HTTP 411."""
     with running_server() as port:
         connection = http.client.HTTPConnection(
             "127.0.0.1",
@@ -214,6 +222,7 @@ def test_request_without_content_length_is_rejected():
 
 
 def test_chunked_request_body_is_rejected():
+    """Reject unsupported chunked request uploads with HTTP 400."""
     with running_server() as port:
         connection = http.client.HTTPConnection(
             "127.0.0.1",
@@ -246,6 +255,7 @@ def test_chunked_request_body_is_rejected():
 
 
 def test_http_redaction_is_idempotent():
+    """Redacting an HTTP response again must produce identical output."""
     data = ndjson(
         {
             "headers": {
