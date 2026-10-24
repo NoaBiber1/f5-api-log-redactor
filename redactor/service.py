@@ -2,13 +2,20 @@
 """Provide a streaming HTTP API for redacting NDJSON traffic logs."""
 
 import argparse
-import io
 import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from .cli import process_stream
 from .engine import RedactionEngine
 from .rules import load_and_validate_rules
+
+
+
+class DiscardDiagnostics:
+    """Discard HTTP diagnostics without buffering them in memory."""
+
+    def write(self, message):
+        return len(message)
 
 
 class LimitedInput:
@@ -165,8 +172,8 @@ class RedactionHandler(BaseHTTPRequestHandler):
         # Stream redacted records as HTTP chunks instead of buffering
         # the entire response in memory.
         output = ChunkedOutput(self.wfile)
-        diagnostics = io.StringIO()
-
+        diagnostics = DiscardDiagnostics()
+        
         try:
             process_stream(
                 source,
