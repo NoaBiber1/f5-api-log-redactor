@@ -269,7 +269,7 @@ def test_urlencoded_idempotent():
 
 
 def test_base64url_jwt_redacted_in_embedded_body():
-    """Verify JWT detection with Base64URL characters."""
+    """Regression test: JWTs containing Base64URL '-' and '_' must be redacted."""
     token = (
         "eyJhbGciOiJIUzI1NiJ9."
         "eyJhIjoiPz8_In0."

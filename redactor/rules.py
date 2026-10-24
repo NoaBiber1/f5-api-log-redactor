@@ -30,6 +30,8 @@ def validate_regex(pattern: object) -> None:
     if not isinstance(pattern, str) or not pattern:
         raise RulesConfigError("Regex must be a non-empty string")
 
+    # Validate regex patterns before processing traffic so invalid
+    # rules cannot cause runtime redaction failures.
     try:
         re.compile(pattern)
     except re.error:
@@ -107,6 +109,8 @@ def validate_rules(rules: object) -> None:
 
     expected_fields = {"version", "settings", "key_rules", "value_rules"}
 
+    # Reject unknown or missing fields to prevent configuration mistakes
+    # from silently weakening redaction rules.
     if set(rules) != expected_fields:
         raise RulesConfigError("Invalid top-level configuration fields")
 
