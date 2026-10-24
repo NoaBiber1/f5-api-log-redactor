@@ -32,6 +32,7 @@ def run_input(data):
 
 
 def test_malformed_json_fails_closed():
+    """Ensure malformed JSON produces a safe error without leaking secrets."""
     data = b'{"body":{"password":"secret"}, broken}\n'
 
     status, output, errors = run_input(data)
@@ -42,6 +43,7 @@ def test_malformed_json_fails_closed():
 
 
 def test_duplicate_keys_are_rejected():
+    """Reject duplicate JSON keys to prevent ambiguous or hidden values."""
     data = (
         b'{"body":{"token":"secret1",'
         b'"token":"secret2"}}\n'
@@ -56,6 +58,7 @@ def test_duplicate_keys_are_rejected():
 
 
 def test_nan_is_rejected():
+    """Ensure non-standard NaN values are rejected safely."""
     status, output, _ = run_input(b'{"value":NaN}\n')
 
     assert status == 1
@@ -63,6 +66,7 @@ def test_nan_is_rejected():
 
 
 def test_infinity_is_rejected():
+    """Ensure non-standard Infinity values are rejected safely."""
     status, output, _ = run_input(b'{"value":Infinity}\n')
 
     assert status == 1
@@ -70,6 +74,7 @@ def test_infinity_is_rejected():
 
 
 def test_nonfinite_numeric_overflow_is_rejected():
+    """Reject numeric overflow that produces non-finite float values."""
     status, output, _ = run_input(b'{"value":1e9999}\n')
 
     assert status == 1
@@ -77,6 +82,7 @@ def test_nonfinite_numeric_overflow_is_rejected():
 
 
 def test_invalid_utf8_fails_closed():
+    """Reject invalid UTF-8 input without exposing the original record."""
     status, output, errors = run_input(
         b'{"body":"\xff\xfe"}\n'
     )
@@ -87,6 +93,7 @@ def test_invalid_utf8_fails_closed():
 
 
 def test_binary_like_data_is_preserved():
+    """Preserve unrelated binary-like text without unnecessary changes."""
     record = {
         "response": {
             "headers": {
@@ -148,6 +155,7 @@ def test_full_stream_is_idempotent():
 
 
 def test_invalid_record_does_not_stop_stream():
+    """Continue processing valid records after an invalid NDJSON record."""
     data = (
         b'{"body":{"password":"first"}}\n'
         b'{"body":broken}\n'

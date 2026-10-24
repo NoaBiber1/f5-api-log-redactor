@@ -1,5 +1,5 @@
 
-"""Streaming HTTP service for NDJSON redaction."""
+"""Provide a streaming HTTP API for redacting NDJSON traffic logs."""
 
 import argparse
 import io
@@ -12,16 +12,20 @@ from .rules import load_and_validate_rules
 
 
 class LimitedInput:
-    """Read only the bytes belonging to the current HTTP request."""
+    """Limit HTTP body reads to the declared Content-Length."""
 
     def __init__(self, source, length):
+        """Store the input stream and the number of unread body bytes."""
         self.source = source
         self.remaining = length
 
     def readline(self, size=-1):
+        """Read the next line without crossing the request-body boundary."""
         if self.remaining == 0:
             return b""
 
+        # Never read beyond Content-Length, even when the underlying
+        # connection remains open for additional HTTP requests.
         if size < 0:
             size = self.remaining
         else:
@@ -37,12 +41,14 @@ class LimitedInput:
 
 
 class ChunkedOutput:
-    """Write each redacted NDJSON record as an HTTP chunk."""
+    """Write redacted records using HTTP chunked transfer encoding."""
 
     def __init__(self, output):
+        """Store the HTTP response stream used to send chunks."""
         self.output = output
 
     def write(self, data):
+        """Send a non-empty byte sequence as one HTTP response chunk."""
         if not data:
             return
 
@@ -54,26 +60,29 @@ class ChunkedOutput:
         self.output.flush()
 
     def finish(self):
+        """Send the terminating zero-length chunk to complete the response."""
         self.output.write(b"0\r\n\r\n")
         self.output.flush()
 
 
 class RedactionHTTPServer(ThreadingHTTPServer):
-    """HTTP server with validated, immutable rule configuration."""
+    """Serve concurrent HTTP requests with shared, validated rule settings."""
 
     daemon_threads = True
 
     def __init__(self, address, handler, rules):
+        """Initialize the HTTP server with its redaction configuration."""
         self.rules = rules
         super().__init__(address, handler)
 
 
 class RedactionHandler(BaseHTTPRequestHandler):
-    """Serve the redaction and health endpoints."""
+    """Handle health checks and streamed NDJSON redaction requests."""
 
     protocol_version = "HTTP/1.1"
 
     def send_json(self, status, data):
+        """Return a JSON response with an HTTP status and safe headers."""
         self.send_response(status)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(data)))
@@ -82,12 +91,14 @@ class RedactionHandler(BaseHTTPRequestHandler):
         self.wfile.write(data)
 
     def do_GET(self):
+        """Return health status for /health or 404 for unknown paths."""
         if self.path == "/health":
             self.send_json(200, b'{"status":"ok"}')
         else:
             self.send_json(404, b'{"error":"not_found"}')
 
     def do_POST(self):
+        """Validate and redact an NDJSON request using streamed output."""
         if self.path != "/redact":
             self.send_json(404, b'{"error":"not_found"}')
             self.close_connection = True
@@ -128,6 +139,8 @@ class RedactionHandler(BaseHTTPRequestHandler):
             if length < 0:
                 raise ValueError()
 
+            # Use a separate engine per request to avoid sharing mutable
+            # redaction counters between concurrent HTTP requests.
             engine = RedactionEngine(self.server.rules)
 
         except (ValueError, TypeError):
@@ -149,6 +162,8 @@ class RedactionHandler(BaseHTTPRequestHandler):
         self.send_header("Cache-Control", "no-store")
         self.end_headers()
 
+        # Stream redacted records as HTTP chunks instead of buffering
+        # the entire response in memory.
         output = ChunkedOutput(self.wfile)
         diagnostics = io.StringIO()
 
@@ -172,13 +187,12 @@ class RedactionHandler(BaseHTTPRequestHandler):
             self.close_connection = True
 
     def log_message(self, format, *args):
-        """Avoid logging request paths or sensitive content."""
+        """Suppress default HTTP request logs to reduce sensitive-data exposure."""
         pass
 
 
 def create_server(host="127.0.0.1", port=8080, rules_path="rules.yaml"):
-    """Validate rules before opening the listening socket."""
-
+    """Validate rules and construct the HTTP server before accepting traffic."""
     rules = load_and_validate_rules(rules_path)
 
     # Construct the engine to verify configuration at startup.
@@ -192,6 +206,7 @@ def create_server(host="127.0.0.1", port=8080, rules_path="rules.yaml"):
 
 
 def main(argv=None):
+    """Parse command-line options and run the HTTP server until shutdown."""
     parser = argparse.ArgumentParser(
         description="Streaming HTTP redaction service"
     )

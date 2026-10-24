@@ -18,6 +18,7 @@ def engine():
 
 
 def test_nested_headers_and_arrays(engine):
+    """Redact sensitive data recursively in HTTP headers and nested arrays."""
     data = {
         "headers": {
             "authorization": "Bearer secret",
@@ -44,6 +45,7 @@ def test_nested_headers_and_arrays(engine):
 
 
 def test_value_inside_free_text(engine):
+    """Redact sensitive patterns appearing inside ordinary text."""
     out = engine.redact_transaction({
         "body": "email a@b.com, key sk_live_abc123"
     })
@@ -54,6 +56,7 @@ def test_value_inside_free_text(engine):
 
 
 def test_luhn_validation(engine):
+    """Redact Luhn-valid card numbers while preserving invalid candidates."""
     assert engine.valid_luhn("4111111111111111")
     assert not engine.valid_luhn("4111111111111112")
 
@@ -66,6 +69,7 @@ def test_luhn_validation(engine):
 
 
 def test_embedded_json_and_response_headers(engine):
+    """Redact sensitive response headers and JSON embedded in strings."""
     data = {
         "response": {
             "headers": {"Set-Cookie": "secret"},
@@ -82,6 +86,7 @@ def test_embedded_json_and_response_headers(engine):
 
 
 def test_non_json_body_and_scalars(engine):
+    """Redact text values while preserving unrelated scalar data types."""
     out = engine.redact_transaction({
         "body": "email=a@b.com",
         "status": 200,
@@ -96,6 +101,7 @@ def test_non_json_body_and_scalars(engine):
 
 
 def test_idempotent(engine):
+    """Ensure redacting a transaction twice produces the same result."""
     data = {
         "headers": {
             "Authorization": "Bearer abc",
@@ -116,6 +122,7 @@ def test_idempotent(engine):
 
 
 def test_rule_counters(engine):
+    """Count each successful redaction under its matching rule name."""
     engine.redact_transaction({
         "body": {
             "password": "a",
@@ -128,6 +135,7 @@ def test_rule_counters(engine):
 
 
 def test_remove_value_rule(engine):
+    """Remove matched sensitive text when a value rule uses remove."""
     config = Path(__file__).resolve().parents[1] / "rules.yaml"
     rules = load_and_validate_rules(config)
     rules["value_rules"][0]["action"] = "remove"
@@ -140,6 +148,7 @@ def test_remove_value_rule(engine):
 
 
 def test_reject_non_object(engine):
+    """Reject transactions that are not JSON objects."""
     with pytest.raises(RedactionError):
         engine.redact_transaction(["not a transaction"])
 
@@ -157,6 +166,7 @@ def test_formatted_credit_cards(engine):
 
 
 def test_formatted_card_idempotency(engine):
+    """Ensure formatted card numbers remain unchanged after re-redaction."""
     data = {
         "body": "pay with 4111 1111 1111 1111"
     }
@@ -168,6 +178,7 @@ def test_formatted_card_idempotency(engine):
 
 
 def test_overlapping_value_matches_do_not_double_replace(engine):
+    """Ensure overlapping rules do not redact or count the same text twice."""
     config = Path(__file__).resolve().parents[1] / "rules.yaml"
     rules = load_and_validate_rules(config)
 
@@ -191,6 +202,7 @@ def test_overlapping_value_matches_do_not_double_replace(engine):
 
 
 def test_headers_only_scope(engine):
+    """Apply header-specific rules only to actual HTTP header fields."""
     data = {
         "headers": {"Authorization": "Bearer 123"},
         "body": {"Authorization": "ordinary"}
@@ -203,6 +215,7 @@ def test_headers_only_scope(engine):
 
 
 def test_body_headers_named_field_not_http_headers(engine):
+    """Do not treat a nested body field named 'headers' as HTTP headers."""
     data = {
         "body": {
             "headers": {
@@ -220,6 +233,7 @@ def test_body_headers_named_field_not_http_headers(engine):
 
 
 def test_key_hash_idempotent(engine):
+    """Avoid hashing an already-hashed sensitive header a second time."""
     data = {
         "headers": {"X-Api-Key": "abcd1234"}
     }
@@ -230,6 +244,7 @@ def test_key_hash_idempotent(engine):
 
 
 def test_key_remove_idempotent(engine):
+    """Keep removed fields absent when redacting the same record again."""
     data = {
         "body": {
             "cvv": "123",
@@ -244,6 +259,7 @@ def test_key_remove_idempotent(engine):
 
 
 def test_masked_email_is_not_present(engine):
+    """Ensure the original email address is absent from redacted output."""
     out = engine.redact_transaction({
         "body": "write a@b.com"
     })

@@ -26,6 +26,11 @@ class RedactionEngine:
     HASH_MARKER = re.compile(r"sha256:[0-9a-f]{64}\Z")
 
     def __init__(self, rules: dict):
+        """Initialize the engine with validated rules.
+
+        Compile regex patterns once and initialize redaction counters
+        for tracking successful rule applications.
+        """
         validate_rules(rules)
 
         self.settings = rules["settings"]
@@ -80,7 +85,7 @@ class RedactionEngine:
 
         if action == "remove":
             return ""
-
+        # Preserve existing SHA-256 markers to maintain idempotency.
         if action == "hash":
             if self.HASH_MARKER.fullmatch(text):
                 return text
@@ -204,7 +209,8 @@ class RedactionEngine:
                     )
                 )
 
-        # Leftmost match wins; key assignments win equal-start ties.
+        # Resolve overlapping matches deterministically:
+        # prefer the leftmost match, then key rules over value rules.
         candidates.sort(
             key=lambda item: (item[0], item[1])
         )
@@ -421,7 +427,8 @@ class RedactionEngine:
                     value,
                     content_type,
                 )
-
+            # Process responses independently so request Content-Type
+            # does not affect response body parsing.
             elif key == "response" and isinstance(value, dict):
                 result[key] = self._walk_http(value)
 
@@ -440,7 +447,8 @@ class RedactionEngine:
             raise RedactionError(
                 "Transaction must be a JSON object"
             )
-
+        # Keep redaction statistics transactional:
+        # failed records must not contribute to rule counters.
         previous_counts = self.counts.copy()
 
         try:

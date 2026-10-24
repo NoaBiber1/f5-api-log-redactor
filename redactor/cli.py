@@ -44,7 +44,8 @@ def process_stream(
     total = 0
 
     while True:
-        # Read one record, with a limit to avoid excessive memory usage.
+        # Read at most one bounded NDJSON record (+1 byte to detect overflow).
+        # This prevents an unbounded line from exhausting memory.
         raw = source.readline(max_line_bytes + 1)
 
         if not raw:
@@ -65,6 +66,7 @@ def process_stream(
             )
             continue
 
+        # Snapshot counters so failed records cannot affect redaction statistics.
         previous_counts = engine.counts.copy()
 
         try:
@@ -101,10 +103,12 @@ def process_stream(
             OverflowError,
             RedactionError,
         ):
-            # Never expose the original input if processing fails.
+            # Fail closed: replace the entire record with a safe error response.
+            # Never fall back to the original potentially sensitive input.
             engine.counts.clear()
             engine.counts.update(previous_counts)
 
+            
             encoded = ERROR_RECORD
             failed += 1
 
